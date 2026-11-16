@@ -106,8 +106,11 @@ def load_store() -> None:
             rec["online"] = False
             rec["seen"] = min(float(rec.get("seen", 0)), now)
             NODES[nid] = rec
-        for pid, p in per.items():
-            PERIPH[pid] = p
+        for key, p in per.items():
+            # 旧格式是「只有 pid」，新格式是「pid|node」，这里顺手迁移
+            if "|" not in key and p.get("node") and p.get("id"):
+                key = f"{p['id']}|{p['node']}"
+            PERIPH[key] = p
         log(f"从 state.json 恢复 {len(NODES)} 个节点 / {len(PERIPH)} 个外设（均标记离线）")
     except Exception as e:
         log(f"state.json 读不了: {e}")
@@ -159,6 +162,7 @@ def update_node(payload: dict) -> None:
         "online": True,
         "seen": now,
     }
+    # 外设按 (设备, 外设) 维度存：同一只耳机可以同时挂在手机和平板下面（多点连接）
     with LOCK:
         NODES[nid] = rec
         for p in per:
@@ -171,69 +175,65 @@ def update_node(payload: dict) -> None:
             ppct = p.get("pct")
             ppct = None if ppct is None else int(ppct)
             conn = bool(p.get("connected", ppct is not None))
-            cur = PERIPH.get(pid)
             pcls = p.get("cls")
             pcls = -1 if pcls is None else int(pcls)
+
+            key = f"{pid}|{nid}"
+            cur = PERIPH.get(key)
+            if cur is None:
+                cur = {"id": pid, "name": name, "pct": None, "cls": -1,
+                       "connected": False, "node": nid, "last_conn_ts": 0.0,
+                       "seen": now}
+                PERIPH[key] = cur
+            cur["name"] = name
+            cur["seen"] = now
+            if ppct is not None:
+                cur["pct"] = ppct
+            if pcls >= 0:
+                cur["cls"] = pcls
             if conn:
-                if cur is None or cur.get("node") == nid:
-                    # 本来就是这台设备的，或者第一次见：直接落定
-                    PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
-                                   "connected": True, "node": nid, "seen": now}
-                else:
-                    # 别的设备报"已连接"：先记成候选，必须连续连满 periph_switch_sec 才搬。
-                    # 这样"断连后闪一下回连另一台"不会把归属带走，
-                    # 面板上显示的仍然是"下次会自动连回哪台"。
-                    ts = cur.get("cand_ts") if cur.get("cand") == nid else None
-                    if ts is None:
-                        cur["cand"] = nid
-                        cur["cand_ts"] = now
-                        log(f"{name} 在 {nid} 出现，观察 {PERIPH_SWITCH_SEC}s 再决定是否改归属")
-                    elif (now - ts) >= PERIPH_SWITCH_SEC:
-                        old = cur.get("node")
-                        PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
-                                       "connected": True, "node": nid, "seen": now}
-                        log(f"{name} 在 {nid} 稳定连接 {int(now - ts)}s，归属 {old} -> {nid}")
-            elif cur is not None and cur.get("node") == nid:
-                # 同一台设备报"已断开"：保留最后的电量，只改状态
-                cur["name"] = name
-                if ppct is not None:
-                    cur["pct"] = ppct
-                if pcls >= 0:
-                    cur["cls"] = pcls
+                cur["connected"] = True
+                cur["last_conn_ts"] = now
+            else:
                 cur["connected"] = False
-                cur["seen"] = now
-                cur.pop("cand", None)
-                cur.pop("cand_ts", None)
-            elif cur is not None:
-                # 别的设备报"已断开"：不抢归属；顺手清掉它自己的候选
-                if cur.get("cand") == nid:
-                    cur.pop("cand", None)
-                    cur.pop("cand_ts", None)
-            elif cur is None:
-                # 配对表里从没测到过电量的设备：占位显示 "—"，不隐藏
-                PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
-                               "connected": False, "node": nid, "seen": now}
     DIRTY.set()
 
 
 def snapshot_locked() -> dict:
     now = time.time()
+
+    # 同一个物理外设可能有多条记录（每台设备一条）
+    groups: dict[str, list] = {}
+    for key, p in PERIPH.items():
+        groups.setdefault(p.get("id", key), []).append(p)
+
     per_by_node: dict[str, list] = {}
-    for pid, p in PERIPH.items():
-        age = int(now - p.get("seen", now))
-        # 显示条件：有过电量读数，或当前正在连接。
-        # 从未读到过电量、也没连着的老设备不显示（避免一堆 "—"）。
-        if p.get("pct") is None and not p.get("connected"):
-            continue
-        # 超过 7 天没再出现（大概率已解绑）才丢弃
-        if age > 7 * 86400 and not p.get("connected"):
-            continue
-        per_by_node.setdefault(p.get("node", ""), []).append({
-            "id": pid, "name": PERIPH_ALIASES.get(pid) or p.get("name", pid),
-            "pct": p.get("pct"),
-            "cls": p.get("cls", -1),
-            "connected": bool(p.get("connected")), "age_sec": age,
-        })
+    for pid, entries in groups.items():
+        conns = [e for e in entries if e.get("connected")]
+        if conns:
+            # 同时连着几台，就挂几台下面
+            chosen = conns
+        else:
+            # 都没连着：挂到"最后一次稳定连过"的那台（= 下次会自动连回的设备）
+            past = [e for e in entries if e.get("pct") is not None]
+            if not past:
+                continue
+            chosen = [max(past, key=lambda e: e.get("last_conn_ts", 0))]
+        dual = len(conns) >= 2
+
+        for e in chosen:
+            age = int(now - e.get("seen", now))
+            if age > 7 * 86400 and not e.get("connected"):
+                continue
+            per_by_node.setdefault(e.get("node", ""), []).append({
+                "id": pid,
+                "name": PERIPH_ALIASES.get(pid) or e.get("name", pid),
+                "pct": e.get("pct"),
+                "cls": e.get("cls", -1),
+                "connected": bool(e.get("connected")),
+                "dual": dual,
+                "age_sec": age,
+            })
     for lst in per_by_node.values():
         lst.sort(key=lambda x: (not x["connected"], x["name"]))
 

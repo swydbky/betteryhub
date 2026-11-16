@@ -605,7 +605,8 @@ class Widget:
             draw_icon(c, icon_kind(p.get("name"), p.get("id"), p.get("cls", -1)),
                       bx1, py + self.X(6), self.X(10.5), icol, max(1, self.X(1)))
             c.create_text(bx1 + self.X(15), py, anchor="nw",
-                          text=("· " if not conn else "") + p.get("name", "?"),
+                          text=("· " if not conn else "") + p.get("name", "?")
+                               + ("  （双设备）" if p.get("dual") else ""),
                           fill=icol, font=self.F(10))
             c.create_text(bx2, py, anchor="ne",
                           text="—" if pp is None else f"{pp}%",

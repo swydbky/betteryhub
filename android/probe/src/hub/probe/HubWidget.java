@@ -153,6 +153,7 @@ public class HubWidget extends AppWidgetProvider {
                             boolean on = p.optBoolean("connected", true);
                             int pp = p.optInt("pct", -1);
                             String line = (on ? "" : "· ") + p.optString("name", "?")
+                                    + (p.optBoolean("dual", false) ? "（双设备）" : "")
                                     + "  " + (pp < 0 ? "—" : pp + "%");
                             int start = sb.length();
                             if (start > 0) sb.append("\n");

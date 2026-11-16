@@ -49,11 +49,15 @@ DEFAULT_CONF = {
              "username": "", "password": ""},
     # 节点显示名覆盖：设备自己报的机型名太长时，在这里改成短名
     "aliases": {},
+    # 外设显示名覆盖：按外设 id（MAC 去掉冒号）改名，例如 {"6c1629715c35": "蓝牙耳机"}
+    "periph_aliases": {},
 }
 
 NODES: dict[str, dict] = {}
 # 节点显示名覆盖（config.json 的 aliases）
 ALIASES: dict[str, str] = {}
+# 外设显示名覆盖（config.json 的 periph_aliases）
+PERIPH_ALIASES: dict[str, str] = {}
 # 外设注册表：id -> {id,name,pct,connected,node,seen}
 # 规则：谁最后把它报成"已连接"，它就固定挂在那台设备下面（耳机在手机/平板间切换时自动搬家）
 PERIPH: dict[str, dict] = {}
@@ -198,7 +202,8 @@ def snapshot_locked() -> dict:
         if age > 7 * 86400 and not p.get("connected"):
             continue
         per_by_node.setdefault(p.get("node", ""), []).append({
-            "id": pid, "name": p.get("name", pid), "pct": p.get("pct"),
+            "id": pid, "name": PERIPH_ALIASES.get(pid) or p.get("name", pid),
+            "pct": p.get("pct"),
             "cls": p.get("cls", -1),
             "connected": bool(p.get("connected")), "age_sec": age,
         })
@@ -400,8 +405,9 @@ def main() -> int:
         return 0
 
     conf = load_conf(args.config)
-    global ALIASES
+    global ALIASES, PERIPH_ALIASES
     ALIASES = dict(conf.get("aliases") or {})
+    PERIPH_ALIASES = dict(conf.get("periph_aliases") or {})
     node = conf["node"]
     Handler.conf = conf
     load_store()

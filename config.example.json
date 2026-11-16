@@ -9,7 +9,7 @@
   },
   "http": {
     "bind": "0.0.0.0",
-    "port": 8080,
+    "port": 18080,
     "token": ""
   },
   "mqtt": {
@@ -18,5 +18,7 @@
     "port": 1883,
     "username": "",
     "password": ""
-  }
+  },
+  "aliases": {},
+  "periph_aliases": {}
 }

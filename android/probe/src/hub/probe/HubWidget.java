@@ -130,6 +130,14 @@ public class HubWidget extends AppWidgetProvider {
                 }
                 if (nameId != 0) rv.setTextColor(nameId, online ? 0xFFE8EEFC : 0xFF5F6B7F);
                 if (pctId != 0) rv.setTextColor(pctId, online ? 0xFFE8EEFC : 0xFF5F6B7F);
+
+                int icoId = rid(ctx, "w_ico" + i, "id");
+                if (icoId != 0) {
+                    String ic = iconName(name, -1);
+                    int res = ctx.getResources().getIdentifier(ic, "drawable", ctx.getPackageName());
+                    if (res != 0) rv.setImageViewResource(icoId, res);
+                    rv.setInt(icoId, "setColorFilter", online ? 0xFFE8EEFC : 0xFF5F6B7F);
+                }
                 if (barId != 0) {
                     rv.setViewVisibility(barId, android.view.View.VISIBLE);
                     rv.setProgressBar(barId, 100, Math.max(0, pct), false);
@@ -162,6 +170,37 @@ public class HubWidget extends AppWidgetProvider {
             }
             mgr.updateAppWidget(id, rv);
         }
+    }
+
+    private static String iconName(String name, int cls) {
+        int major = cls > 0 ? (cls & 0x1F00) : 0;
+        int minor = cls > 0 ? (cls & 0x00FC) : 0;
+        String s = name == null ? "" : name.toLowerCase();
+
+        if (major == 0x0500) {
+            if (minor == 0x40) return "ic_kb";
+            if (minor == 0x80) return "ic_mouse";
+            if (minor == 0xC0) return "ic_kb";
+        }
+        if (major == 0x0400) {
+            if (s.contains("buds") || s.contains("tws") || s.contains("豆")
+                    || s.contains("耳机") || s.contains("anc")) return "ic_earbuds";
+            return "ic_headphone";
+        }
+        if (major == 0x0100) return "ic_laptop";
+        if (major == 0x0200) return "ic_phone";
+
+        if (s.contains("平板") || s.contains("pad") || s.contains("tablet")) return "ic_tablet";
+        if (s.contains("笔电") || s.contains("笔记本") || s.contains("laptop")
+                || s.contains("win10") || s.contains("win11") || s.contains("电脑")) return "ic_laptop";
+        if (s.contains("iqoo") || s.contains("phone") || s.contains("手机")) return "ic_phone";
+        if (s.contains("耳机") || s.contains("buds") || s.contains("airpods")) return "ic_earbuds";
+        if (s.contains("头戴")) return "ic_headphone";
+        if (s.contains("键盘") || s.contains("keyboard")) return "ic_kb";
+        if (s.contains("鼠标") || s.contains("mouse")) return "ic_mouse";
+        if (s.matches(".*\\bk\\d{3}\\b.*")) return "ic_kb";
+        if (s.matches(".*\\bm\\d{3}\\b.*")) return "ic_mouse";
+        return "ic_generic";
     }
 
     private static String ago(long sec) {

@@ -567,9 +567,11 @@ class Widget:
         b = n.get("battery") or {}
         pct, chg, ac = b.get("pct"), b.get("charging"), b.get("ac")
 
-        c.create_oval(x1 + self.X(11), y + self.X(10), x1 + self.X(17), y + self.X(16),
-                      fill=DIM if off else GREEN, outline="")
-        c.create_text(x1 + self.X(22), y + self.X(13), anchor="w",
+        # 设备类型图标（在线亮、离线灰）
+        draw_icon(c, icon_kind(n.get("name"), n.get("node")),
+                  x1 + self.X(10), y + self.X(13), self.X(13),
+                  DIM if off else TXT, max(1, self.X(1.1)))
+        c.create_text(x1 + self.X(29), y + self.X(13), anchor="w",
                       text=n.get("name", n.get("node")),
                       fill=DIM if off else TXT, font=self.F(11))
         state = "离线" if off else ("充电中" if chg else ("已充满" if ac else "放电中"))
@@ -599,9 +601,12 @@ class Widget:
         for p in per:
             pp = p.get("pct")
             conn = p.get("connected", True)
-            c.create_text(bx1, py, anchor="nw",
+            icol = PER if conn else PER_OFF
+            draw_icon(c, icon_kind(p.get("name"), p.get("id"), p.get("cls", -1)),
+                      bx1, py + self.X(6), self.X(10.5), icol, max(1, self.X(1)))
+            c.create_text(bx1 + self.X(15), py, anchor="nw",
                           text=("· " if not conn else "") + p.get("name", "?"),
-                          fill=PER if conn else PER_OFF, font=self.F(10))
+                          fill=icol, font=self.F(10))
             c.create_text(bx2, py, anchor="ne",
                           text="—" if pp is None else f"{pp}%",
                           fill=PER_VAL if conn else PER_OFF,

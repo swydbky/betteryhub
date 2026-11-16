@@ -190,7 +190,11 @@ def snapshot_locked() -> dict:
     per_by_node: dict[str, list] = {}
     for pid, p in PERIPH.items():
         age = int(now - p.get("seen", now))
-        # 超过 7 天没再出现（大概率已解绑）才丢弃；其余全显示
+        # 显示条件：有过电量读数，或当前正在连接。
+        # 从未读到过电量、也没连着的老设备不显示（避免一堆 "—"）。
+        if p.get("pct") is None and not p.get("connected"):
+            continue
+        # 超过 7 天没再出现（大概率已解绑）才丢弃
         if age > 7 * 86400 and not p.get("connected"):
             continue
         per_by_node.setdefault(p.get("node", ""), []).append({

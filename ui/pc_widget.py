@@ -626,6 +626,16 @@ def main() -> int:
     ap.add_argument("--url", default="http://127.0.0.1:18080")
     ap.add_argument("--interval", type=int, default=5)
     a = ap.parse_args()
+
+    # 单实例：桌面快捷方式可以随便点，不会开出第二个窗口
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateMutexW(None, False, "Local\\battery-hub-widget")
+        if ctypes.get_last_error() == 183:      # ERROR_ALREADY_EXISTS
+            return 0
+    except Exception:
+        pass
+
     enable_dpi()
     Widget(a.url, a.interval).run()
     return 0

@@ -284,6 +284,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/health"):
             self._json({"ok": True, "uptime": int(time.time() - START_TS),
                         "nodes": len(NODES)})
+        elif self.path.startswith("/apk"):
+            # 方便设备自己在浏览器里下载新版 APK，省得每次插线
+            apk = os.path.join(ROOT, "android", "out", "probe.apk")
+            if not os.path.isfile(apk):
+                self.send_error(404, "apk not built")
+                return
+            self._send(200, open(apk, "rb").read(),
+                       "application/vnd.android.package-archive")
         elif self.path in ("/", "/index.html"):
             try:
                 body = open(os.path.join(HERE, "dashboard.html"), "rb").read()

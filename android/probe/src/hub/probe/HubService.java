@@ -91,8 +91,18 @@ public class HubService extends Service {
         }
     }
 
-    private static String sanitize(String s) {
-        if (s == null) return "";
+    /** 反射调用隐藏 API BluetoothDevice.isConnected()；取不到就返回 false。 */
+    private static boolean isConnected(BluetoothDevice d) {
+        try {
+            java.lang.reflect.Method m = BluetoothDevice.class.getMethod("isConnected");
+            Object v = m.invoke(d);
+            return v instanceof Boolean && (Boolean) v;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static String sanitize(String s) {        if (s == null) return "";
         return s.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+)|(-+$)", "");
     }
 
@@ -274,18 +284,25 @@ public class HubService extends Service {
                 Log.w(TAG, "reflect 失败 " + mac + " : " + t);
             }
 
-            if (pct >= 0) {
-                saveLast(mac, name, pct);
-                fresh.add(new Per(name, mac, pct, true, cls));
+            int livePct = pct;                       // 本次实时读到的（-1 表示没有）
+            if (livePct >= 0) {
+                saveLast(mac, name, livePct);
                 live++;
             } else {
                 JSONObject e = last.optJSONObject(mac);
                 int old = e == null ? -1 : e.optInt("pct", -1);
                 String oldName = e == null ? name : e.optString("name", name);
                 if (old >= 0) hist++;
-                fresh.add(new Per(oldName == null || oldName.isEmpty() ? name : oldName,
-                        mac, old, false, cls));
+                pct = old;
+                if (oldName != null && !oldName.isEmpty()) name = oldName;
             }
+            // 连没连不能靠"有没有电量"来判断：很多 BLE 键鼠不开放电量服务。
+            // 优先 isConnected() 反射；取不到时才用"本次读到电量"当代理。
+            boolean refl = isConnected(d);
+            boolean conn = refl || (livePct >= 0);
+            Log.i(TAG, String.format("  %s mac=%s conn=%s isConnected=%s livePct=%d pct=%d cls=%d",
+                    name, mac, conn, refl, livePct, pct, cls));
+            fresh.add(new Per(name, mac, pct, conn, cls));
         }
         devices.clear();
         devices.addAll(fresh);

@@ -44,6 +44,9 @@ STORE = os.path.join(ROOT, "state.json")
 DEFAULT_CONF = {
     "node": {"id": "pc", "name": "Win10 笔电"},
     "publish": {"heartbeat_sec": 600, "min_delta_pct": 1},
+    # 外设换设备的去抖窗口：新设备必须连续连满这么多秒，才认为"真的换过去了"。
+    # 目的是让面板显示"下次会自动连回哪台"，而不是被一次闪连带走。
+    "periph_switch_sec": 120,
     "http": {"bind": "0.0.0.0", "port": 18080, "token": ""},
     "mqtt": {"enabled": False, "host": "127.0.0.1", "port": 1883,
              "username": "", "password": ""},
@@ -58,6 +61,8 @@ NODES: dict[str, dict] = {}
 ALIASES: dict[str, str] = {}
 # 外设显示名覆盖（config.json 的 periph_aliases）
 PERIPH_ALIASES: dict[str, str] = {}
+# 外设换设备的去抖窗口（秒）
+PERIPH_SWITCH_SEC = 120
 # 外设注册表：id -> {id,name,pct,connected,node,seen}
 # 规则：谁最后把它报成"已连接"，它就固定挂在那台设备下面（耳机在手机/平板间切换时自动搬家）
 PERIPH: dict[str, dict] = {}
@@ -175,17 +180,19 @@ def update_node(payload: dict) -> None:
                     PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
                                    "connected": True, "node": nid, "seen": now}
                 else:
-                    # 别的设备报"已连接"：先记成候选，连续两次才算真的搬过去。
-                    # 这样耳机断连后瞬间回连另一台设备时，归属不会跟着乱跳。
-                    streak = cur.get("cand_n", 0) + 1 if cur.get("cand") == nid else 1
-                    if streak >= 2:
+                    # 别的设备报"已连接"：先记成候选，必须连续连满 periph_switch_sec 才搬。
+                    # 这样"断连后闪一下回连另一台"不会把归属带走，
+                    # 面板上显示的仍然是"下次会自动连回哪台"。
+                    ts = cur.get("cand_ts") if cur.get("cand") == nid else None
+                    if ts is None:
+                        cur["cand"] = nid
+                        cur["cand_ts"] = now
+                        log(f"{name} 在 {nid} 出现，观察 {PERIPH_SWITCH_SEC}s 再决定是否改归属")
+                    elif (now - ts) >= PERIPH_SWITCH_SEC:
+                        old = cur.get("node")
                         PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
                                        "connected": True, "node": nid, "seen": now}
-                        log(f"{name} 连续 {streak} 次在 {nid} 上报，归属从 "
-                            f"{cur.get('node')} 迁到 {nid}")
-                    else:
-                        cur["cand"] = nid
-                        cur["cand_n"] = streak
+                        log(f"{name} 在 {nid} 稳定连接 {int(now - ts)}s，归属 {old} -> {nid}")
             elif cur is not None and cur.get("node") == nid:
                 # 同一台设备报"已断开"：保留最后的电量，只改状态
                 cur["name"] = name
@@ -196,12 +203,12 @@ def update_node(payload: dict) -> None:
                 cur["connected"] = False
                 cur["seen"] = now
                 cur.pop("cand", None)
-                cur.pop("cand_n", None)
+                cur.pop("cand_ts", None)
             elif cur is not None:
                 # 别的设备报"已断开"：不抢归属；顺手清掉它自己的候选
                 if cur.get("cand") == nid:
                     cur.pop("cand", None)
-                    cur.pop("cand_n", None)
+                    cur.pop("cand_ts", None)
             elif cur is None:
                 # 配对表里从没测到过电量的设备：占位显示 "—"，不隐藏
                 PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
@@ -425,9 +432,10 @@ def main() -> int:
         return 0
 
     conf = load_conf(args.config)
-    global ALIASES, PERIPH_ALIASES
+    global ALIASES, PERIPH_ALIASES, PERIPH_SWITCH_SEC
     ALIASES = dict(conf.get("aliases") or {})
     PERIPH_ALIASES = dict(conf.get("periph_aliases") or {})
+    PERIPH_SWITCH_SEC = int(conf.get("periph_switch_sec", 120))
     node = conf["node"]
     Handler.conf = conf
     load_store()

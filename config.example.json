@@ -1,0 +1,22 @@
+{
+  "node": {
+    "id": "pc",
+    "name": "Win10 笔电"
+  },
+  "publish": {
+    "heartbeat_sec": 600,
+    "min_delta_pct": 1
+  },
+  "http": {
+    "bind": "0.0.0.0",
+    "port": 8080,
+    "token": ""
+  },
+  "mqtt": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 1883,
+    "username": "",
+    "password": ""
+  }
+}

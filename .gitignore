@@ -1,0 +1,17 @@
+﻿vendor/
+android/out/
+log/
+__pycache__/
+*.pyc
+*.apk
+*.zip
+
+config.json
+state.json
+state.json.tmp
+ui/window.json
+
+android/probe/hub_urls.txt
+android/probe/res/values/strings.xml
+
+.dsh-cache/

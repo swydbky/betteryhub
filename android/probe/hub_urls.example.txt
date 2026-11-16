@@ -1,0 +1,9 @@
+# 电量中枢地址清单示例
+# 复制成 hub_urls.txt 再改成你自己的地址（这个 .txt 不进 git）
+#
+# 第一条：电脑的局域网 IPv4
+# 第二条：电脑的 IPv6（如果像校园网那样 IPv4 不通）
+# 第三条：adb reverse 兜底
+http://192.168.1.100:18080/report
+http://[fd00::1]:18080/report
+http://127.0.0.1:18080/report

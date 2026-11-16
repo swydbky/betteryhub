@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>电量中枢</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; min-height: 100vh;
+    background: radial-gradient(1200px 600px at 20% -10%, #1b2a4a 0%, #0b0f17 60%);
+    color: #e8eefc;
+    font: 15px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { color: #7b8aa8; font-size: 13px; margin-bottom: 20px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .card {
+    position: relative; padding: 16px 18px; border-radius: 16px;
+    background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+    border: 1px solid rgba(255,255,255,.09);
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+  }
+  .card.off { opacity: .45; }
+  .name { font-size: 14px; color: #b9c6dd; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 8px #34d399; }
+  .off .dot { background: #6b7280; box-shadow: none; }
+  .pct { font-size: 44px; font-weight: 700; letter-spacing: -1px; line-height: 1.15; margin-top: 6px;
+         font-variant-numeric: tabular-nums; }
+  .pct small { font-size: 18px; font-weight: 500; color: #8fa3c4; margin-left: 2px; }
+  .bolt { color: #fbbf24; font-size: 20px; vertical-align: 6px; margin-left: 6px; }
+  .bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,.09); margin-top: 12px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg,#22d3ee,#3b82f6); transition: width .4s; }
+  .bar.low > i { background: linear-gradient(90deg,#f59e0b,#ef4444); }
+  .meta { margin-top: 10px; font-size: 12px; color: #7b8aa8; min-height: 18px; }
+  .per { margin-top: 8px; border-top: 1px dashed rgba(255,255,255,.1); padding-top: 8px; }
+  .per div { display: flex; justify-content: space-between; font-size: 13px; color: #a8b8d4; padding: 2px 0; }
+  .per b { color: #dbe6f8; font-weight: 600; }
+  .err { color: #f87171; font-size: 13px; }
+</style>
+</head>
+<body>
+  <h1>电量中枢</h1>
+  <div class="sub" id="sub">连接中…</div>
+  <div class="grid" id="grid"></div>
+<script>
+const grid = document.getElementById('grid');
+const sub  = document.getElementById('sub');
+
+function ago(s) {
+  if (s === null || s === undefined) return '未知';
+  if (s < 60) return s + ' 秒前';
+  if (s < 3600) return Math.floor(s/60) + ' 分钟前';
+  if (s < 86400) return Math.floor(s/3600) + ' 小时前';
+  return Math.floor(s/86400) + ' 天前';
+}
+
+function card(n) {
+  const pct = n.battery && n.battery.pct;
+  const chg = n.battery && n.battery.charging;
+  const ac  = n.battery && n.battery.ac;
+  const off = !n.online;
+  const low = pct !== null && pct !== undefined && pct <= 20;
+  const per = (n.peripherals || []).map(p =>
+    `<div><span>${p.name}</span><b>${p.pct === null || p.pct === undefined ? '—' : p.pct + '%'}</b></div>`
+  ).join('');
+  let stateTxt;
+  if (off) stateTxt = '离线';
+  else if (chg) stateTxt = '充电中';
+  else if (ac) stateTxt = '已充满';
+  else stateTxt = '放电中';
+  return `<div class="card ${off ? 'off' : ''}">
+    <div class="name"><span class="dot"></span>${n.name}</div>
+    <div class="pct">${pct === null || pct === undefined ? '—' : pct}<small>%</small>${ac ? '<span class="bolt">⚡</span>' : ''}</div>
+    <div class="bar ${low ? 'low' : ''}"><i style="width:${pct || 0}%"></i></div>
+    <div class="meta">${stateTxt} · ${off ? '最后 ' : '更新于 '}${ago(n.age_sec)}</div>
+    ${per ? `<div class="per">${per}</div>` : ''}
+  </div>`;
+}
+
+async function tick() {
+  try {
+    const r = await fetch('/state', {cache: 'no-store'});
+    const d = await r.json();
+    grid.innerHTML = d.nodes.map(card).join('') || '<div class="err">还没有任何节点上报</div>';
+    sub.textContent = `${d.count} 个节点 · 中枢时间 ${new Date(d.hub_ts*1000).toLocaleTimeString()}`;
+  } catch (e) {
+    sub.innerHTML = '<span class="err">连不上中枢（' + e.message + '）</span>';
+  }
+}
+tick();
+setInterval(tick, 5000);
+</script>
+</body>
+</html>

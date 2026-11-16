@@ -170,9 +170,22 @@ def update_node(payload: dict) -> None:
             pcls = p.get("cls")
             pcls = -1 if pcls is None else int(pcls)
             if conn:
-                # 谁最后报"已连接"，归属就搬到谁那里（耳机换设备）
-                PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
-                               "connected": True, "node": nid, "seen": now}
+                if cur is None or cur.get("node") == nid:
+                    # 本来就是这台设备的，或者第一次见：直接落定
+                    PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
+                                   "connected": True, "node": nid, "seen": now}
+                else:
+                    # 别的设备报"已连接"：先记成候选，连续两次才算真的搬过去。
+                    # 这样耳机断连后瞬间回连另一台设备时，归属不会跟着乱跳。
+                    streak = cur.get("cand_n", 0) + 1 if cur.get("cand") == nid else 1
+                    if streak >= 2:
+                        PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,
+                                       "connected": True, "node": nid, "seen": now}
+                        log(f"{name} 连续 {streak} 次在 {nid} 上报，归属从 "
+                            f"{cur.get('node')} 迁到 {nid}")
+                    else:
+                        cur["cand"] = nid
+                        cur["cand_n"] = streak
             elif cur is not None and cur.get("node") == nid:
                 # 同一台设备报"已断开"：保留最后的电量，只改状态
                 cur["name"] = name
@@ -182,6 +195,13 @@ def update_node(payload: dict) -> None:
                     cur["cls"] = pcls
                 cur["connected"] = False
                 cur["seen"] = now
+                cur.pop("cand", None)
+                cur.pop("cand_n", None)
+            elif cur is not None:
+                # 别的设备报"已断开"：不抢归属；顺手清掉它自己的候选
+                if cur.get("cand") == nid:
+                    cur.pop("cand", None)
+                    cur.pop("cand_n", None)
             elif cur is None:
                 # 配对表里从没测到过电量的设备：占位显示 "—"，不隐藏
                 PERIPH[pid] = {"id": pid, "name": name, "pct": ppct, "cls": pcls,

@@ -44,9 +44,6 @@ STORE = os.path.join(ROOT, "state.json")
 DEFAULT_CONF = {
     "node": {"id": "pc", "name": "Win10 笔电"},
     "publish": {"heartbeat_sec": 600, "min_delta_pct": 1},
-    # 外设换设备的去抖窗口：新设备必须连续连满这么多秒，才认为"真的换过去了"。
-    # 目的是让面板显示"下次会自动连回哪台"，而不是被一次闪连带走。
-    "periph_switch_sec": 120,
     "http": {"bind": "0.0.0.0", "port": 18080, "token": ""},
     "mqtt": {"enabled": False, "host": "127.0.0.1", "port": 1883,
              "username": "", "password": ""},
@@ -61,8 +58,6 @@ NODES: dict[str, dict] = {}
 ALIASES: dict[str, str] = {}
 # 外设显示名覆盖（config.json 的 periph_aliases）
 PERIPH_ALIASES: dict[str, str] = {}
-# 外设换设备的去抖窗口（秒）
-PERIPH_SWITCH_SEC = 120
 # 外设注册表：id -> {id,name,pct,connected,node,seen}
 # 规则：谁最后把它报成"已连接"，它就固定挂在那台设备下面（耳机在手机/平板间切换时自动搬家）
 PERIPH: dict[str, dict] = {}
@@ -432,10 +427,9 @@ def main() -> int:
         return 0
 
     conf = load_conf(args.config)
-    global ALIASES, PERIPH_ALIASES, PERIPH_SWITCH_SEC
+    global ALIASES, PERIPH_ALIASES
     ALIASES = dict(conf.get("aliases") or {})
     PERIPH_ALIASES = dict(conf.get("periph_aliases") or {})
-    PERIPH_SWITCH_SEC = int(conf.get("periph_switch_sec", 120))
     node = conf["node"]
     Handler.conf = conf
     load_store()

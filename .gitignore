@@ -1,4 +1,4 @@
-﻿vendor/
+vendor/
 android/out/
 log/
 __pycache__/
@@ -15,3 +15,6 @@ android/probe/hub_urls.txt
 android/probe/res/values/strings.xml
 
 .dsh-cache/
+
+# 交接文档（含本机地址，不入库）
+HANDOVER.md

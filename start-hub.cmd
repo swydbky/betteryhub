@@ -17,5 +17,7 @@ goto START_WIDGET
 :HUB_RUNNING
 
 :START_WIDGET
+rem Public tunnel (OpenFrp HK node) so phones work on any network, not just the LAN
+call "tools\start-tunnel.cmd"
 start "" /min cmd /c "pythonw ui\pc_widget.py"
 exit /b 0

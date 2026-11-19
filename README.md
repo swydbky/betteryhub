@@ -1,9 +1,11 @@
-# 电量中枢 / battery-hub
+# 电量中枢 · battery-hub
 
-把 **手机、平板、笔记本、蓝牙耳机、蓝牙键鼠** 的电量和充电状态聚到一处，
-在 **Windows 桌面悬浮窗**、**Android 桌面小组件**、**网页面板** 上同时看到。
+> 把手机、平板、笔记本、蓝牙耳机和键鼠的电量聚到一处，一眼看出谁该充电。
+> 一个 Python 进程 + 一个 33 KB 的 APK，没有数据库、没有云服务、没有账号体系。
 
-> 用途：桌面上随手一眼就知道哪台设备该充电了。全部跑在局域网内，不依赖任何云服务。
+[![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-0b0f17?style=flat-square)](#)
+[![python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](#)
+[![license](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
 
 ![PC 悬浮窗](docs/pc-widget.png)
 
@@ -13,348 +15,135 @@
 
 ---
 
-## 功能与规则
+## ✨ 特性
 
-这一节写的是**实际行为**，不是设想。
+- **三端同屏** —— Windows 悬浮窗、Android 桌面小组件、网页面板，5 秒同步
+- **手机/平板/笔记本的自身电量**，区分「充电中 / 已充满 / 放电中」
+- **蓝牙外设电量** —— 耳机、键盘、鼠标，靠反射隐藏 API 读取
+- **多点连接** —— 耳机同时连手机和平板时，两边都显示并标「双设备」
+- **跨网络** —— 校园网、4G、热点都能用，不依赖局域网
+- **零依赖** —— Python 只用 `psutil` / `paho-mqtt`；Android 手工构建，不打包第三方库
+- **读不到 ≠ 没电** —— `null` 一律显示 `—`，不会误导你
 
-### 1. 采集
+## 🚀 快速开始
 
-| 端 | 采集内容 | 方式 |
-|---|---|---|
-| 手机 / 平板 | 自身电量、充电 | `BatteryManager` 粘性广播 |
-| 手机 / 平板 | 每台已配对蓝牙耳机的电量 | 反射 `BluetoothDevice.getBatteryLevel()`（隐藏 API） |
-| 手机 / 平板 | 每台外设是否连接 | 反射 `BluetoothDevice.isConnected()` |
-| PC | 自身电量、充电、是否插电 | `GetSystemPowerStatus` |
+### 1) 电脑端（约 1 分钟）
 
-扫描频率：**15 秒一次**，扫的是系统"已配对设备"列表（`getBondedDevices()`），不是扫描周围信号。
+```powershell
+git clone https://github.com/swydbky/betteryhub
+cd betteryhub
+python -m pip install -r requirements.txt
+.\start-hub.cmd
+```
 
-> 为什么不用 `BATTERY_LEVEL_CHANGED` 广播？实测在这台机器上一次都不触发。
-> 为什么不用 `dumpsys bluetooth_manager`？vivo 把这部分 dump 掏空了，输出 0 字节。
+打开 <http://127.0.0.1:18080> 看到面板就成功了。
 
-### 2. 上报：事件驱动 + 心跳
+> 没有 Python？去 [python.org](https://www.python.org/downloads/) 装 3.10+，
+> **安装时勾选 `Add python.exe to PATH`**。
 
-| 触发条件 | 是否立即上报 |
-|---|---|
-| 电量与上次相比变化 ≥ 1% | ✅ 立即 |
-| 充电 / 插电状态翻转 | ✅ 立即 |
-| 外设连接状态变化 | ✅ 立即 |
-| 以上都没有 | 每 **10 分钟**发一次心跳 |
+### 2) 手机 / 平板（约 3 分钟）
 
-中枢超过 **30 分钟**没收到某节点上报，就把它标记为**离线**（并变灰）。
-状态写进 `state.json`，中枢重启后恢复，全部先标记离线、等它们重新上报。
+1. 手机浏览器打开 `http://<电脑IP>:18080/apk` 下载 APK
+2. 去「文件管理 → 下载」点它安装（不要在浏览器里直接打开）
+3. 打开 App，地址框里填 `http://<电脑IP>:18080/report`，点「保存并重启上报」
+4. 权限全允许，然后按 [保活指南](docs/keepalive.md) 加白名单
 
-### 3. 外设显示规则
+### 3) 跨网络（可选，约 5 分钟）
 
-**显示条件**（三条缺一不可）：
+同一 WiFi 下直连就够用了。**校园网 / 4G / 设备分散**时才需要隧道：
 
-1. 在系统"已配对"列表里；
-2. **并且**满足下列之一：有过至少一次电量读数 / 当前正在连接。
+```powershell
+# 1) 注册 openfrp.net，建一条 TCP 隧道指向 127.0.0.1:18080（海外节点免实名）
+# 2) 把隧道详情页的「配置文件」存成 tools\frp\frpc.toml
+# 3) 启动（start-hub.cmd 也会自动带上）
+.\tools\start-tunnel.cmd
+```
 
-> 换句话说：从来没读到过电量、现在也没连着的设备**不显示**（避免面板上挂一堆 `—`）。
-> 但"连着却读不到电量"的设备**会显示**，只是电量为 `—` —— 因为连着这件事本身是有效信息（比如某些 BLE 鼠标不开放电量服务）。
+之后手机里的地址改成 `http://<节点域名>:<远程端口>/report`，任何网络都能连。
 
-**显示内容**：
-
-- 有历史电量 → 显示**最后一次读到的电量**，断开后也保留；
-- 从未读到过 → 显示 `—`；
-- 断开的外设 → 整行**变灰**，名字前加 `·`。
-
-**归属规则（支持多点连接）**：
-
-一只蓝牙耳机可以**同时连着手机和平板**（TWS 多点连接），这时它**同时挂在两台设备下面**，
-名字后面标 `（双设备）`：
-
-| 情况 | 显示 |
-|---|---|
-| 两台都连着 | **两边都显示**，都带 `（双设备）`，各自显示各自的电量 |
-| 只连一台 | 只挂在那一台，不带标记 |
-| 都断开 | 挂到"**最后一次稳定连过**"的那台 —— 也就是**下次开机会自动连回的设备**，灰色 + 最后电量 |
-
-- 存储键是 `(设备, 外设)`，所以同一只耳机在每台设备下都有独立的电量和连接状态；
-- 某台设备报"已断开"只影响它自己那条，**不会**把另一台设备那份删掉；
-- 不存在"抢归属"：连着就挂、断了就不挂，断开时才回落到最后那台；
-- 外设所属的设备离线时，该外设跟着一起变灰。
-
-### 4. 数值语义：`null` 不等于 `0`
-
-| 字段 | 取值 | 含义 |
-|---|---|---|
-| `pct` | `0..100` | 正常 |
-| `pct` | `null` | **读不到**（不是没电） |
-| `charging` | `true` | 正在充电 |
-| `charging=false, ac=true` | | 插着电但已充满 |
-| `charging=false, ac=false` | | 电池放电中 |
-
-界面上 `null` 一律显示 `—`，绝不显示 `0%`。
-
-### 5. 类型识别（折叠条图标）
-
-三层兜底，命中即止：
-
-| 顺序 | 依据 | 例子 |
-|---|---|---|
-| 1 | 蓝牙设备类 `getDeviceClass()` | `0x0540`→键盘、`0x0580`→鼠标、`0x04xx`→音频 |
-| 2 | 名字关键词 | `耳机/buds/tws/anc/w820/头戴/keyboard/mouse/鼠标/平板/pad…` |
-| 3 | 型号前缀 | `K###`→键盘、`M###`→鼠标（联想等厂家惯例） |
-| 4 | 兜底 | 通用圆环 |
-
-音频类还会再按名字区分**头戴**（大弧+耳罩）和**豆式**（两颗小豆），因为蓝牙类分不出来。
-
-### 6. 节点识别
-
-- 节点 id 由机型自动生成（`Build.MODEL`），所以**同一个 APK** 装到手机和平板不会互相覆盖；
-- 想改名不用重装：`config.json` 里
-  - `"aliases": {"opd2513": "平板"}` —— 改**设备**名
-  - `"periph_aliases": {"6c1629715c35": "蓝牙耳机"}` —— 改**外设**名（键是 MAC 去掉冒号）
-
-### 7. 网络
-
-- 中枢**同时监听 IPv4 和 IPv6**（同一端口）；
-- App 内置**多地址回退**：按 `hub_urls.txt` 的顺序依次尝试，第一个能通的就用
-  （典型顺序：局域网 IPv4 → IPv6 → `adb reverse` 隧道）；
-- `GET /apk` 可以直接下载最新 APK，省得每次插线；
-- **没有自动发现**：实测 mDNS / SSDP 在这类校园网里 0 响应，只能手写地址。
-
-### 8. 界面
-
-**PC 悬浮窗**（`ui/pc_widget.py`）
-
-- 无边框、置顶、半透明，**不占任务栏**（`overrideredirect` + `-toolwindow`，Alt+Tab 里也不出现）
-- 设备名和外设名前都有**类型图标**（手机/笔记本/平板/头戴/豆式/键盘/鼠标），在线亮、离线灰
-- 右上角 `─` 折叠成一条 30px 横条；`✕` 完全退出
-- 折叠条只显示**图标 + 电量**，按设备分组，组间有分隔线
-- 拖动移动，位置存 `ui/window.json`
-- 右下角斜纹拖拽调宽（260–560）
-- 中枢挂掉时保留最后一帧，右上角变橙色"离线 · 原因"，不闪白
-- 电量 ≤20% 进度条变橙色
-
-**Android 小组件**（`RemoteViews`）
-
-- 固定 3 行（手机 / 平板 / 电脑），每行"**类型图标** + 名字 + 百分比 + 进度条"，下面一行小字列外设
-- 圆角引用系统的 `system_app_widget_background_radius`，和系统小组件一致
-- 断开的外设整行变灰；离线设备整行变灰 + `·` 前缀
-- 点一下打开网页面板
-- 跟着服务的 15 秒扫描节奏刷新
-
-**网页面板**（`/`）：5 秒自动刷新，手机上也能直接看。
-
-### 9. 保活（Android）
-
-- 前台服务 + 常驻低优先级通知（`foregroundServiceType="connectedDevice"`）
-- `START_STICKY`：被系统杀掉后自动重建
-- `BOOT_COMPLETED`：开机自启
-- `MY_PACKAGE_REPLACED`：**覆盖安装后自启**（这条很关键，`START_STICKY` 救不了装完被杀）
-- 仍需手动开系统白名单：**完整教程见 [docs/keepalive.md](docs/keepalive.md)**
-  （分 ROM 路径 / 验证方法 / 症状对照表）
+> ⚠️ 用 `serverAddr` 当访问域名，**不是** `serverName`（那只是 TLS 证书名）。
 
 ---
 
-## 架构
+## 🖥️ 三个入口
+
+| 入口 | 位置 | 亮点 |
+|---|---|---|
+| **电脑悬浮窗** | 屏幕角落，置顶不占任务栏 | 右键菜单：改字体/字号、折叠、调高度；右下角拖拽改大小；滚轮翻页 |
+| **手机小组件** | 桌面，三种尺寸 `2×2 / 4×2 / 4×4` | 手指上下滑看更多设备；点一下打开面板 |
+| **网页面板** | 任何浏览器 | 5 秒自动刷新，出门在外也能看 |
+
+---
+
+## 🧠 工作原理
 
 ```
-┌─────────────┐   POST /report   ┌──────────────────────────┐
-│ 手机 App    │ ───────────────► │  PC: hub.py              │
-│ (前台服务)  │                  │  · 采集本机电量          │
-└─────────────┘                  │  · 接收各设备上报        │
-┌─────────────┐   POST /report   │  · 外设归属仲裁          │
-│ 平板 App    │ ───────────────► │  · state.json 持久化     │
-└─────────────┘                  │  · HTTP 面板 /state      │
-                                 └────────┬─────────────────┘
-                                          │ GET /state
-                    ┌─────────────────────┼─────────────────────┐
-                    ▼                     ▼                     ▼
+┌──────────┐  POST /report   ┌─────────────────────────┐
+│ 手机 App │ ──────────────► │ PC: hub/hub.py :18080   │
+└──────────┘                 │  · 采集本机电量          │
+┌──────────┐  POST /report   │  · 接收各设备上报        │
+│ 平板 App │ ──────────────► │  · 外设归属仲裁          │
+└──────────┘                 │  · state.json 持久化     │
+                             └───────────┬─────────────┘
+                                         │ GET /state
+                    ┌────────────────────┼────────────────────┐
+                    ▼                    ▼                    ▼
               PC 悬浮窗            手机/平板小组件          网页面板
              (Python/Tk)          (RemoteViews)
 ```
 
-没有 MQTT、没有数据库、没有账号体系。一个 Python 进程 + 一个 APK。
+设备主动上报，不轮询；中枢只做聚合和展示。
 
 ---
 
-## 目录
+## 📐 行为规则
 
-```
-battery-hub/
-├─ hub/
-│  ├─ hub.py            # 中枢：采集/汇总/持久化/HTTP
-│  ├─ battery.py        # Windows 电池读数（区分 充电中/已充满/放电中）
-│  ├─ dashboard.html    # 网页面板
-│  └─ broker.py         # 备选 MQTT broker（默认不用，见"局限"）
-├─ ui/
-│  └─ pc_widget.py      # PC 桌面悬浮窗
-├─ android/probe/       # Android 端（手工 aapt2/d8 构建，不用 Gradle）
-│  ├─ AndroidManifest.xml
-│  ├─ hub_urls.example.txt   # 中枢地址模板，复制成 hub_urls.txt
-│  ├─ res/                   # 布局、小组件描述、圆角背景
-│  └─ src/hub/probe/
-│     ├─ HubService.java     # 前台服务：扫描蓝牙 + 上报
-│     ├─ HubWidget.java      # 桌面小组件
-│     ├─ BootReceiver.java   # 开机 / 覆盖安装后自启
-│     └─ ProbeActivity.java  # 只有授权 + 拉起服务
-├─ tools/
-│  ├─ build_probe.ps1   # 手工构建 APK（aapt2 → javac → d8 → 签名）
-│  └─ fake_node.py      # 假节点，调界面用
-├─ config.example.json
-└─ start-hub.cmd
-```
-
----
-
-## 快速开始
-
-### 1. PC 端
-
-```powershell
-cd battery-hub
-python -m pip install -r requirements.txt
-copy config.example.json config.json
-python hub/hub.py          # 中枢，监听 18080
-python ui/pc_widget.py     # 悬浮窗（可另开窗口）
-```
-
-或者直接双击 `start-hub.cmd`。
-
-面板：`http://127.0.0.1:18080/`
-
-### 2. Android 端
-
-需要 JDK 17 + Android SDK（platform-35、build-tools 35）。仓库**不含**这些，因为体积太大。
-
-```powershell
-# 1) 写中枢地址（这个文件不进 git）
-copy android/probe/hub_urls.example.txt android/probe/hub_urls.txt
-notepad android/probe/hub_urls.txt
-
-# 2) 构建
-powershell -ExecutionPolicy Bypass -File tools/build_probe.ps1
-
-# 3) 安装
-adb install -r -g android/out/probe.apk
-adb shell am start -n hub.probe/.ProbeActivity
-```
-
-> `-g` 很关键：一次授予全部运行时权限。某些 ROM（如 OxygenOS）不允许 `pm grant`。
-
-装完去桌面长按空白 → 小组件 → **HubProbe**。
-
-### 3. 地址清单
-
-`hub_urls.txt` 里每行一个地址，App 按顺序试，第一个能通的就用：
-
-```
-http://192.168.1.100:18080/report          # 局域网 IPv4
-http://[fd00::1]:18080/report              # IPv6（IPv4 不通时用）
-http://127.0.0.1:18080/report              # adb reverse 兜底
-```
-
----
-
-## 数据格式
-
-### `POST /report`
-
-```json
-{
-  "node": "iqooz8",
-  "name": "iQOO Z8",
-  "ts": 1763270000,
-  "battery": { "pct": 87, "charging": false, "ac": false },
-  "peripherals": [
-    { "id": "cc14bcadbc77", "name": "EDIFIER W820NB", "pct": 90, "connected": true, "cls": 1028 },
-    { "id": "119f9f6bbf78", "name": "Lenovo K211",  "pct": 85, "connected": true, "cls": -1 }
-  ]
-}
-```
-
-| 字段 | 说明 |
+| 规则 | 实际行为 |
 |---|---|
-| `pct` | `null` = 读不到（不是没电） |
-| `charging` | 正在充电 |
-| `ac` | 插着电源（充满时 `charging=false, ac=true`） |
-| `connected` | 该外设当前是否连着 |
-| `cls` | `BluetoothClass.getDeviceClass()`，用来判断键鼠/耳机；BLE 设备常为 -1 |
-
-### `GET /state`
-
-```json
-{ "hub_ts": 1763270000, "count": 3,
-  "nodes": [ { "node":"pc", "name":"Win10 笔电", "online":true, "age_sec":3,
-               "battery":{...}, "peripherals":[...] } ] }
-```
-
-**外设归属规则**：谁最后把它报成 `connected:true`，它就固定挂在那台设备下面。
-耳机在手机/平板之间切换时会自动搬家；`connected:false` 时保留最后一次电量并变灰。
+| **上报节奏** | 电量变化 ≥1% / 充电翻转 / 外设连断 → **立即**；否则 **10 分钟**心跳 |
+| **离线判定** | 中枢 **30 分钟**收不到上报 → 变灰标「离线」 |
+| **外设归属** | 连着就挂在那台设备下；多台同时连 → 都挂并标「双设备」；全断开 → 挂到最后连过的那台 |
+| **数值语义** | `pct=null` 表示**读不到**，界面显示 `—`，绝不显示 `0%` |
+| **节点识别** | 靠 `Build.MODEL` 自动生成 id，同一个 APK 装多台不会互相覆盖 |
 
 ---
 
-## 已知局限（请务必先读）
+## ⚠️ 已知限制
 
-### 网络
-
-1. **IPv6 地址是写死的。** 电脑换网络（换 AP、换热点）后 IPv6 前缀会变，平板就失联。
-   IPv4 通的设备不受影响。
-2. **校园网/企业网可能不给客户端做代理 ARP。** 实测某校园网中，平板 ARP 电脑的 IPv4
-   返回 `INCOMPLETE`，但 IPv6 通。这就是为什么地址清单要支持多条。
-3. **8080 这类端口可能被网络封掉。** 本项目用 18080，但换网络后仍可能撞上。
-4. **Tailscale 等 VPN 会劫持本地路由。** 平板上开着 Tailscale 时，连网关都是
-   `No route to host`。要么关掉，要么给它加局域网直连例外。
-5. **组播基本不能指望。** 实测 mDNS、SSDP 在该校园网均 0 响应，所以没做自动发现，
-   地址只能手写。
-
-### Windows
-
-6. **防火墙的"程序阻止规则"会压过端口放行规则。** 如果 `python.exe` 曾被误点"取消"，
-   会留下 Block 规则，任何端口规则都不生效。排查：
-   ```powershell
-   netsh advfirewall firewall show rule name=all dir=in | findstr /i python
-   ```
-   有 Block 就删掉。
-
-### Android
-
-7. **依赖隐藏 API。** 耳机电量靠反射调用 `BluetoothDevice.getBatteryLevel()`
-   （不在公开 SDK 里）。某些 ROM 会拦，OTA 后也可能失效。
-   实测 iQOO Z8 / Android 15 可用，OnePlus / Android 16 未验证。
-8. **`BATTERY_LEVEL_CHANGED` 广播不触发。** 实测全程 0 条，别指望它。
-9. **`dumpsys bluetooth_manager` 在部分 ROM 上是空的**（vivo 实测 0 字节），
-   所以没法用 adb 验证电量，只能靠 App。
-10. **保活要手动配置。** 前台服务只是及格线，OriginOS / OxygenOS 还需要：
-    自启动、后台高耗电、电池不受限制、最近任务锁定。
-11. **小组件布局固定 3 行。** RemoteViews 不支持动态增删，多于 3 台设备会显示不下。
-12. **窄屏/换行**：外设名过长会挤，目前靠一行一个外设缓解。
-
-### 功能
-
-13. **ESP32 屏尚未实现**（见路线图）。
-14. **充电状态对耳机不可得**，只能显示"连接/断开"。
-15. **没有历史曲线**、没有低电量提醒、没有多用户/认证（`http.token` 预留了但没启用）。
+| 类别 | 限制 |
+|---|---|
+| 网络 | 校园网/企业网普遍**隔离客户端**，局域网直连不可用，必须走隧道 |
+| 网络 | 组播被禁，**没有自动发现**，地址只能手写或多条回退 |
+| 网络 | 部分网络封端口，所以默认用 `18080` 而不是 `8080` |
+| Android | 耳机电量依赖**隐藏 API**，某些 ROM 会拦，系统 OTA 后可能失效 |
+| Android | 部分鼠标（如 Lenovo M241）不开放电量服务，只能显示「连着、电量 —」 |
+| Android | 小组件字号**不能运行时修改**（RemoteViews 限制），尺寸也只能选预设或手动拖 |
+| Android | 必须手动加后台白名单，否则会被系统杀掉 |
+| Windows | 防火墙若有 `python.exe` 的 Block 规则，会压过端口放行 |
+| 功能 | 没有历史曲线、没有低电量提醒、没有账号体系；`http.token` 预留未启用 |
 
 ---
 
-## 踩过的坑（复现时会遇到）
+## 📚 文档
 
-| 现象 | 原因 | 处理 |
-|---|---|---|
-| `POST /report` 全部超时，但本机 curl 正常 | Windows 防火墙有 `python.exe` 的 Block 规则 | 删除该规则 |
-| 装完 APK 后数据不再更新 | 覆盖安装会杀掉进程，`START_STICKY` 救不了 | 已内置 `MY_PACKAGE_REPLACED` 自启 |
-| `pm grant` 报 `GRANT_RUNTIME_PERMISSIONS` 拒绝 | Android 16 / OxygenOS 限制 | `adb install -g` |
-| 改了端口后悬浮窗空白 | 默认 URL 没跟着改 | 检查 `--url` 默认值 |
-| 配置文件读不出来 | PowerShell `Set-Content -Encoding UTF8` 写了 BOM | 用无 BOM 写入 |
-| 中文源码编译报错 | 同上的编码问题 | 用 UTF-8 无 BOM 保存 |
-| Tk 文字重叠/被裁 | Windows 125% 缩放，字体按磅、坐标按像素 | 统一乘 DPI 因子，字号用负值 |
+| 文档 | 给谁看 |
+|---|---|
+| [使用指南](docs/使用指南.md) | **第一次装的人** —— 从装 Python 到加小组件，含报错修复 |
+| [部署手册-给DSH](docs/部署手册-给DSH.md) | **AI 助手** —— 执行清单，只列必须人工完成的步骤 |
+| [开发备忘](docs/开发备忘.md) | **改代码的人** —— 数据格式、外设归属、构建方式、踩坑记录 |
+| [保活指南](docs/keepalive.md) | 分 ROM 的后台白名单设置 |
 
 ---
 
-## 路线图
+## 🗺️ 路线图
 
-- [ ] **ESP32 桌面屏**：ESP32-S3 + 2.4" ST7789 + LD2410C 毫米波人感，
-      `人来自动亮屏，人走熄屏`，每 10 分钟拉一次 `/state`
-- [ ] 平板端白名单引导页
+- [ ] ESP32 桌面屏（ESP32-S3 + ST7789 + LD2410C，人来亮屏）
 - [ ] 低电量通知
-- [ ] 地址自动发现（局域网有 DHCP 保留或固定 IP 之后）
+- [ ] 历史曲线
+- [ ] 地址自动发现（等固定 IP / DHCP 保留）
 
 ---
 
-## 许可
+## 📄 许可
 
-MIT。自行取用，出问题自负。
+[MIT](LICENSE)。自行取用，出问题自负。

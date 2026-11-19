@@ -294,12 +294,14 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "battery-hub/0.2"
     conf: dict = {}
 
-    def _send(self, code, body: bytes, ctype: str):
+    def _send(self, code, body: bytes, ctype: str, extra=None):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
@@ -321,8 +323,12 @@ class Handler(BaseHTTPRequestHandler):
             if not os.path.isfile(apk):
                 self.send_error(404, "apk not built")
                 return
+            # 明确文件名和类型：有些平板浏览器会按响应头猜扩展名，缺 Content-Disposition
+            # 时可能存成 .bin / 无后缀，系统就“认不出”这是 APK
             self._send(200, open(apk, "rb").read(),
-                       "application/vnd.android.package-archive")
+                       "application/vnd.android.package-archive",
+                       {"Content-Disposition": 'attachment; filename="probe.apk"',
+                        "X-Content-Type-Options": "nosniff"})
         elif self.path in ("/", "/index.html"):
             try:
                 body = open(os.path.join(HERE, "dashboard.html"), "rb").read()

@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件外壳：标题栏固定，下面是一个 ListView（集合型小组件，可上下滑动） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:padding="10dp"
     android:background="@drawable/widget_bg">
 
-    <!-- 标题行 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingBottom="6dp">
+        android:paddingBottom="4dp">
 
         <TextView
             android:layout_width="0dp"
@@ -33,160 +33,29 @@
             android:textSize="10sp" />
     </LinearLayout>
 
-    <!-- 设备 0 -->
-    <LinearLayout
-        android:id="@+id/w_row0"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="4dp">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <ImageView
-            android:id="@+id/w_ico0"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:src="@drawable/ic_generic" />
+        <ListView
+            android:id="@+id/w_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="vertical"
+            android:overScrollMode="never" />
 
         <TextView
-            android:id="@+id/w_name0"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/w_pct0"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/w_bar0"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:max="100"
-        android:progress="0"
-        android:progressTint="#22D3EE" />
-
-    <TextView
-        android:id="@+id/w_per0"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#C2CEE2"
-        android:textSize="10sp"
-        android:paddingTop="2dp" />
-
-    <!-- 设备 1 -->
-    <LinearLayout
-        android:id="@+id/w_row1"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="8dp">
-
-        <ImageView
-            android:id="@+id/w_ico1"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:src="@drawable/ic_generic" />
-
-        <TextView
-            android:id="@+id/w_name1"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/w_pct1"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/w_bar1"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:max="100"
-        android:progress="0"
-        android:progressTint="#22D3EE" />
-
-    <TextView
-        android:id="@+id/w_per1"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#C2CEE2"
-        android:textSize="10sp"
-        android:paddingTop="2dp" />
-
-    <!-- 设备 2 -->
-    <LinearLayout
-        android:id="@+id/w_row2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="8dp">
-
-        <ImageView
-            android:id="@+id/w_ico2"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_marginEnd="6dp"
-            android:src="@drawable/ic_generic" />
-
-        <TextView
-            android:id="@+id/w_name2"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/w_pct2"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="—"
-            android:textColor="#E8EEFC"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/w_bar2"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="4dp"
-        android:max="100"
-        android:progress="0"
-        android:progressTint="#22D3EE" />
-
-    <TextView
-        android:id="@+id/w_per2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:textColor="#C2CEE2"
-        android:textSize="10sp"
-        android:paddingTop="2dp" />
+            android:id="@+id/w_empty"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="还没有节点上报"
+            android:textColor="#8FA0BB"
+            android:textSize="11sp"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </LinearLayout>

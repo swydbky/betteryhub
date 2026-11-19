@@ -6,6 +6,10 @@ __pycache__/
 *.apk
 *.zip
 
+# 隧道客户端与配置（frpc.toml 里有 OpenFrp token，绝对不能入库）
+tools/frp/
+tools/cloudflared.exe
+
 config.json
 state.json
 state.json.tmp

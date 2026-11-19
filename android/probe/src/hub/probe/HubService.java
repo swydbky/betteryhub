@@ -60,10 +60,18 @@ public class HubService extends Service {
 
     private void loadHubs() {
         try {
-            int id = getResources().getIdentifier("hub_urls", "string", getPackageName());
-            String s = id == 0 ? "" : getString(id);
+            // 优先用 App 里手填的地址（ProbeActivity 保存），留空才用打包时注入的内置清单
+            String s = prefs == null ? null : prefs.getString(KEY_URLS, "");
+            if (s == null || s.trim().isEmpty()) {
+                int id = getResources().getIdentifier("hub_urls", "string", getPackageName());
+                s = id == 0 ? "" : getString(id);
+            }
             if (s != null && !s.trim().isEmpty()) {
-                hubs = s.split(",");
+                List<String> list = new ArrayList<>();
+                for (String part : s.split(",")) {
+                    if (part != null && !part.trim().isEmpty()) list.add(part.trim());
+                }
+                hubs = list.toArray(new String[0]);
             }
         } catch (Throwable t) {
             Log.w(TAG, "读 hub_urls 失败", t);
@@ -75,6 +83,8 @@ public class HubService extends Service {
     private static final String NODE_NAME = deriveName();
     private static final String PREFS = "hubprobe";
     private static final String KEY_LAST = "last";
+    /** App 里手填的中枢地址覆盖项（ProbeActivity 写入），空 = 用内置清单 */
+    static final String KEY_URLS = "urls";
 
     private static class Per {
         String name, mac;

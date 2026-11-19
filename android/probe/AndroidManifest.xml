@@ -30,6 +30,12 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- 给小组件的 ListView 供数据（集合型组件必须由系统绑定） -->
+        <service
+            android:name=".WidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
@@ -40,8 +46,10 @@
             </intent-filter>
         </receiver>
 
+        <!-- 三种尺寸：添加小组件时列表里直接显示占几格（真正的格数由桌面决定，这里只是建议值） -->
         <receiver
             android:name=".HubWidget"
+            android:label="电量中枢 4×2"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -50,6 +58,32 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".HubWidgetSmall"
+            android:label="电量中枢 2×2"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="hub.probe.WIDGET_RENDER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_small" />
+        </receiver>
+
+        <receiver
+            android:name=".HubWidgetLarge"
+            android:label="电量中枢 4×4"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="hub.probe.WIDGET_RENDER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_large" />
         </receiver>
     </application>
 </manifest>
